@@ -32,7 +32,9 @@ def register_user(username, password):
 def authenticate_user(username, password):
     conn = sqlite3.connect('finance.db')
     c = conn.cursor()
-    c.execute('SELECT password FROM users WHERE username = ?', (username,))
+    c.execute('SELECT id, password FROM users WHERE username = ?', (username,))
     row = c.fetchone()
     conn.close()
-    return row and row[0] == hash_password(password)
+    if row and row[1] == hash_password(password):
+        return row[0]  # return user_id
+    return None
