@@ -1,75 +1,93 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from auth import init_user_table, register_user, authenticate_user
-import dashboard
+from dashboard import DashboardPage
 
-init_user_table()
+class FinanceApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Finance Tracker")
+        self.geometry("1000x700")
+        self.resizable(True, True)
 
-def open_dashboard(username):
-    root.destroy()
-    dashboard.launch_dashboard(username)
+        self.container = tk.Frame(self)
+        self.container.pack(fill="both", expand=True)
 
-def login():
-    username = username_entry.get()
-    password = password_entry.get()
-    if authenticate_user(username, password):
-        open_dashboard(username)
-    else:
-        messagebox.showerror("Login Failed", "Invalid username or password.")
+        self.frames = {}
+        init_user_table()
 
-def register():
-    username = username_entry.get().strip()
-    password = password_entry.get().strip()
-    confirm_password = confirm_password_entry.get().strip()
+        for Page in (LoginPage, RegisterPage):
+            name = Page.__name__
+            frame = Page(parent=self.container, controller=self)
+            self.frames[name] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
 
-    if not username or not password or not confirm_password:
-        messagebox.showerror("Error", "All fields are required.")
-        return
+        self.show_frame("LoginPage")
 
-    if password != confirm_password:
-        messagebox.showerror("Error", "Passwords do not match.")
-        return
+    def show_frame(self, name):
+        frame = self.frames[name]
+        frame.tkraise()
 
-    if register_user(username, password):
-        messagebox.showinfo("Success", "Account created! You can now log in.")
-        # Optionally: switch to login view or clear fields
-        username_entry.delete(0, tk.END)
-        password_entry.delete(0, tk.END)
-        confirm_password_entry.delete(0, tk.END)
-    else:
-        messagebox.showerror("Error", "Username already exists.")
+    def launch_dashboard(self, username, user_id):
+        page = DashboardPage(self.container, self, username, user_id)
+        self.frames["DashboardPage"] = page
+        page.grid(row=0, column=0, sticky="nsew")
+        self.show_frame("DashboardPage")
 
 
-root = tk.Tk()
-root.title("Login - Finance Tracker")
-root.geometry("500x350")  # Make it wider & taller
-root.resizable(True, True)  # Allow both directions
+class LoginPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        ttk.Label(self, text="Login", font=("Arial", 16)).pack(pady=20)
+        self.username = ttk.Entry(self)
+        self.username.pack(padx=100, fill="x")
+        self.password = ttk.Entry(self, show="*")
+        self.password.pack(padx=100, fill="x")
+        ttk.Button(self, text="Login", command=self.login).pack(pady=10)
+        ttk.Button(self, text="Register", command=lambda: controller.show_frame("RegisterPage")).pack()
+
+    def login(self):
+        u = self.username.get().strip()
+        p = self.password.get().strip()
+        user_id = authenticate_user(u, p)
+        if user_id:
+            self.controller.launch_dashboard(u, user_id)
+        else:
+            messagebox.showerror("Error", "Invalid credentials.")
 
 
-ttk.Label(root, text="Username:").pack(pady=(20, 5))
-username_entry = ttk.Entry(root)
-username_entry.pack()
+class RegisterPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
 
-ttk.Label(root, text="Password:").pack(pady=5)
-password_entry = ttk.Entry(root, show="*")
-password_entry.pack()
+        ttk.Label(self, text="Register", font=("Arial", 16)).pack(pady=20)
+        self.username = ttk.Entry(self)
+        self.username.pack(padx=100, fill="x")
+        self.password = ttk.Entry(self, show="*")
+        self.password.pack(padx=100, fill="x")
+        self.confirm = ttk.Entry(self, show="*")
+        self.confirm.pack(padx=100, fill="x")
+        ttk.Button(self, text="Create Account", command=self.register).pack(pady=10)
+        ttk.Button(self, text="Back to Login", command=lambda: controller.show_frame("LoginPage")).pack()
 
-ttk.Button(root, text="Login", command=login).pack(pady=10)
-ttk.Button(root, text="Register", command=register).pack()
-ttk.Label(root, text="Username:").pack(pady=(20, 5))
-username_entry = ttk.Entry(root)
-username_entry.pack()
+    def register(self):
+        u = self.username.get().strip()
+        p = self.password.get().strip()
+        cp = self.confirm.get().strip()
+        if not u or not p or not cp:
+            messagebox.showerror("Error", "All fields required.")
+        elif p != cp:
+            messagebox.showerror("Error", "Passwords do not match.")
+        elif register_user(u, p):
+            messagebox.showinfo("Success", "Account created. You can now log in.")
+            self.controller.show_frame("LoginPage")
+        else:
+            messagebox.showerror("Error", "Username already exists.")
 
-ttk.Label(root, text="Password:").pack(pady=5)
-password_entry = ttk.Entry(root, show="*")
-password_entry.pack()
 
-ttk.Label(root, text="Confirm Password:").pack(pady=5)
-confirm_password_entry = ttk.Entry(root, show="*")
-confirm_password_entry.pack()
-
-
-root.mainloop()
-
-# 
-# 
+if __name__ == "__main__":
+    app = FinanceApp()
+    app.mainloop()

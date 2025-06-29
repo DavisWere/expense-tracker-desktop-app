@@ -6,6 +6,7 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             date TEXT,
             type TEXT,
             amount REAL,
@@ -16,30 +17,30 @@ def init_db():
     conn.commit()
     conn.close()
 
-def add_transaction(date, tx_type, amount, category, note):
+def add_transaction(user_id, date, tx_type, amount, category, note):
     conn = sqlite3.connect('finance.db')
     c = conn.cursor()
     c.execute('''
-        INSERT INTO transactions (date, type, amount, category, note)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (date, tx_type, amount, category, note))
+        INSERT INTO transactions (user_id, date, type, amount, category, note)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (user_id, date, tx_type, amount, category, note))
     conn.commit()
     conn.close()
 
-def get_transactions():
+def get_transactions(user_id):
     conn = sqlite3.connect('finance.db')
     c = conn.cursor()
-    c.execute('SELECT * FROM transactions ORDER BY date DESC')
+    c.execute('SELECT id, date, type, amount, category, note FROM transactions WHERE user_id = ? ORDER BY date DESC', (user_id,))
     rows = c.fetchall()
     conn.close()
     return rows
 
-def calculate_totals():
+def calculate_totals(user_id):
     conn = sqlite3.connect('finance.db')
     c = conn.cursor()
-    c.execute("SELECT SUM(amount) FROM transactions WHERE type='Income'")
+    c.execute("SELECT SUM(amount) FROM transactions WHERE type='Income' AND user_id=?", (user_id,))
     income = c.fetchone()[0] or 0
-    c.execute("SELECT SUM(amount) FROM transactions WHERE type='Expense'")
+    c.execute("SELECT SUM(amount) FROM transactions WHERE type='Expense' AND user_id=?", (user_id,))
     expense = c.fetchone()[0] or 0
     conn.close()
     return income, expense
