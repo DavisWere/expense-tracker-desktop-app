@@ -1,6 +1,25 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
+from datetime import datetime
+import os
+import threading
+import schedule
+import time
+import datetime 
+import base64
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+from email.mime.text import MIMEText
+from gmail_auth import get_gmail_service
+import socket
+socket.create_connection(("8.8.8.8", 53))
+
+from email_config import EMAIL_ADDRESS, TO_EMAIL
+
 from database import init_db, add_transaction, get_transactions, calculate_totals
 
 class DashboardPage(tk.Frame):
@@ -14,9 +33,14 @@ class DashboardPage(tk.Frame):
         self.build_ui()
         self.refresh_data()
 
+        threading.Thread(target=self.run_background_tasks, daemon=True).start()
+
+
+
     def build_ui(self):
         tk.Label(self, text=f"Welcome, {self.username}", font=("Arial", 16)).pack(pady=10)
         ttk.Button(self, text="Logout", command=self.logout).pack()
+        ttk.Button(self, text="📄 Export PDF Report", command=self.generate_pdf_report).pack(pady=10)
 
         frame = ttk.LabelFrame(self, text="Add Transaction")
         frame.pack(padx=10, pady=10, fill="x")
@@ -71,3 +95,105 @@ class DashboardPage(tk.Frame):
 
     def logout(self):
         self.controller.show_frame("LoginPage")
+
+    def generate_pdf_report(self, silent=False):
+        now = datetime.now()
+        filename = f"report_{now.strftime('%Y-%m-%d')}.pdf"
+        filepath = os.path.join(os.getcwd(), filename)
+
+        transactions = get_transactions(self.user_id)
+        income, expense = calculate_totals(self.user_id)
+        balance = income - expense
+
+        c = canvas.Canvas(filepath, pagesize=A4)
+        width, height = A4
+
+        # Header
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(1 * inch, height - 1 * inch, "Finance Tracker Monthly Report")
+        c.setFont("Helvetica", 12)
+        c.drawString(1 * inch, height - 1.3 * inch, f"User: {self.username}")
+        c.drawString(1 * inch, height - 1.6 * inch, f"Period: {now.strftime('%B %Y')}")
+        c.drawString(1 * inch, height - 2.0 * inch, f"Income: {income:.2f}")
+        c.drawString(3 * inch, height - 2.0 * inch, f"Expenses: {expense:.2f}")
+        c.drawString(5 * inch, height - 2.0 * inch, f"Balance: {balance:.2f}")
+
+        # Table header
+        y = height - 2.5 * inch
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(1 * inch, y, "Date")
+        c.drawString(2.5 * inch, y, "Type")
+        c.drawString(3.5 * inch, y, "Amount")
+        c.drawString(4.5 * inch, y, "Category")
+        c.drawString(6 * inch, y, "Note")
+
+        # Transactions
+        c.setFont("Helvetica", 9)
+        y -= 0.2 * inch
+        for tx in transactions:
+            if y < 1 * inch:
+                c.showPage()
+                y = height - 1 * inch
+            c.drawString(1 * inch, y, str(tx[1]))  # date
+            c.drawString(2.5 * inch, y, str(tx[2]))  # type
+            c.drawString(3.5 * inch, y, f"{tx[3]:.2f}")  # amount
+            c.drawString(4.5 * inch, y, str(tx[4]))  # category
+            c.drawString(6 * inch, y, str(tx[5]))  # note
+            y -= 0.2 * inch
+
+        c.save()
+        if not silent:
+            messagebox.showinfo("PDF Report", f"Report saved as:\n{filename}")
+        return filepath
+
+    def send_email_with_pdf(self, filepath):
+        try:
+            service = get_gmail_service()
+
+            message = MIMEMultipart()
+            message["to"] = TO_EMAIL
+            message["from"] = EMAIL_ADDRESS  # same as the authenticated Gmail address
+            message["subject"] = "📄 Finance Tracker Report"
+
+            message.attach(MIMEText("Attached is your auto-generated finance report.", "plain"))
+
+            # Attach the PDF
+            with open(filepath, "rb") as f:
+                file_data = f.read()
+                filename = os.path.basename(filepath)
+                part = MIMEApplication(file_data, _subtype="pdf")
+                part.add_header("Content-Disposition", "attachment", filename=filename)
+                message.attach(part)
+
+            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+            service.users().messages().send(userId="me", body={"raw": raw_message}).execute()
+
+            print(f"[✔] Email sent via Gmail API: {filename}")
+        except Exception as e:
+            import traceback
+            print(f"[✖] Gmail API Email error: {e}")
+            traceback.print_exc()
+
+        time.sleep(1)
+
+    def run_background_tasks(self):
+        def job():
+            today = datetime.date.today()
+            
+            if today.day == 1:
+                filepath = self.generate_pdf_report(silent=True)
+                self.send_email_with_pdf(filepath)
+            else:
+                print("Not the 1st of the month, skipping.")
+
+        schedule.every().day.at("08:00").do(job)
+
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
+
+    
+    
+ 
+
