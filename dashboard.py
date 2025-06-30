@@ -14,7 +14,6 @@ from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 from gmail_auth import get_gmail_service
 import socket
-import yagmail
 
 
 from email_config import EMAIL_ADDRESS, TO_EMAIL
