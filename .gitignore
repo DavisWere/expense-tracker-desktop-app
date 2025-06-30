@@ -222,3 +222,5 @@ venv/
 
 # Mac/Linux
 .DS_Store
+credentials.json
+token.pickle
