@@ -15,6 +15,7 @@ from email.mime.text import MIMEText
 from gmail_auth import get_gmail_service
 import socket
 import json
+import sys
 
 
 from email_config import EMAIL_ADDRESS, TO_EMAIL
@@ -94,8 +95,9 @@ class DashboardPage(tk.Frame):
 
     def logout(self):
         self.controller.show_frame("LoginPage")
+    
 
-    def generate_pdf_report(self, email=None, username=None, silent=False):
+    def generate_pdf_report(self, email=None, username=None, silent=True):
         now = datetime.now()
         filename = f"report_{now.strftime('%Y-%m-%d')}.pdf"
         filepath = os.path.join(os.getcwd(), filename)
@@ -156,7 +158,7 @@ class DashboardPage(tk.Frame):
         except OSError:
             return False
 
-    def send_email_with_pdf(self, filepath, retry_attempts=3, retry_delay=600):
+    def send_email_with_pdf(self, filepath, email=None, retry_attempts=3, retry_delay=600):
         for attempt in range(retry_attempts):
             if not self.check_internet():
                 print(f"[✖] No internet connection. Retrying in {retry_delay // 60} min...")
@@ -167,7 +169,7 @@ class DashboardPage(tk.Frame):
                 service = get_gmail_service()
 
                 message = MIMEMultipart()
-                message["to"] = TO_EMAIL
+                message["to"] = email
                 message["from"] = EMAIL_ADDRESS
                 message["subject"] = "📄 Finance Tracker Report"
 
@@ -216,13 +218,13 @@ class DashboardPage(tk.Frame):
             today = datetime(2025, 7, 1).date() 
             if today.day == 1:
                 filepath = self.generate_pdf_report(email, username)
-                self.send_email_with_pdf(filepath)
+                self.send_email_with_pdf(filepath,email)
             else:
                 print("⏭️ Not the 1st of the month, skipping email.")
 
         # Check daily at 08:00 AM
-        # schedule.every().day.at("08:00").do(job)
-        schedule.every(2).minutes.do(job)
+        schedule.every().day.at("08:00").do(job)
+        # schedule.every(2).minutes.do(job)
 
         while True:
             schedule.run_pending()
