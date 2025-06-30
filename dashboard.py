@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from datetime import datetime
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
@@ -9,14 +8,13 @@ import os
 import threading
 import schedule
 import time
-import datetime 
 import base64
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 from gmail_auth import get_gmail_service
 import socket
-socket.create_connection(("8.8.8.8", 53))
+
 
 from email_config import EMAIL_ADDRESS, TO_EMAIL
 
@@ -146,54 +144,69 @@ class DashboardPage(tk.Frame):
             messagebox.showinfo("PDF Report", f"Report saved as:\n{filename}")
         return filepath
 
-    def send_email_with_pdf(self, filepath):
+    def check_internet(self):
         try:
-            service = get_gmail_service()
+            socket.create_connection(("8.8.8.8", 53), timeout=3)
+            return True
+        except OSError:
+            return False
 
-            message = MIMEMultipart()
-            message["to"] = TO_EMAIL
-            message["from"] = EMAIL_ADDRESS  # same as the authenticated Gmail address
-            message["subject"] = "📄 Finance Tracker Report"
+    def send_email_with_pdf(self, filepath, retry_attempts=3, retry_delay=600):
+        for attempt in range(retry_attempts):
+            if not self.check_internet():
+                print(f"[✖] No internet connection. Retrying in {retry_delay // 60} min...")
+                time.sleep(retry_delay)
+                continue
 
-            message.attach(MIMEText("Attached is your auto-generated finance report.", "plain"))
+            try:
+                service = get_gmail_service()
 
-            # Attach the PDF
-            with open(filepath, "rb") as f:
-                file_data = f.read()
-                filename = os.path.basename(filepath)
-                part = MIMEApplication(file_data, _subtype="pdf")
-                part.add_header("Content-Disposition", "attachment", filename=filename)
-                message.attach(part)
+                message = MIMEMultipart()
+                message["to"] = TO_EMAIL
+                message["from"] = EMAIL_ADDRESS
+                message["subject"] = "📄 Finance Tracker Report"
 
-            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+                message.attach(MIMEText("Attached is your auto-generated finance report.", "plain"))
 
-            service.users().messages().send(userId="me", body={"raw": raw_message}).execute()
+                with open(filepath, "rb") as f:
+                    file_data = f.read()
+                    filename = os.path.basename(filepath)
+                    part = MIMEApplication(file_data, _subtype="pdf")
+                    part.add_header("Content-Disposition", "attachment", filename=filename)
+                    message.attach(part)
 
-            print(f"[✔] Email sent via Gmail API: {filename}")
-        except Exception as e:
-            import traceback
-            print(f"[✖] Gmail API Email error: {e}")
-            traceback.print_exc()
+                raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
-        time.sleep(1)
+                service.users().messages().send(userId="me", body={"raw": raw_message}).execute()
+
+                print(f"[✔] Email sent via Gmail API: {filename}")
+                return  # Exit if success
+
+            except Exception as e:
+                import traceback
+                print(f"[✖] Gmail API Email error: {e}")
+                traceback.print_exc()
+                print(f"Retrying in {retry_delay // 60} min...")
+
+            time.sleep(retry_delay)
+
 
     def run_background_tasks(self):
         def job():
-            today = datetime.date.today()
-            
+            # today = datetime.today().date()
+            today = datetime(2025, 7, 1).date()  # mock 1st of the month
+
             if today.day == 1:
+                print("📅 It's the 1st. Generating and sending report...")
                 filepath = self.generate_pdf_report(silent=True)
                 self.send_email_with_pdf(filepath)
             else:
-                print("Not the 1st of the month, skipping.")
+                print("⏭️ Not the 1st of the month, skipping email.")
 
-        schedule.every().day.at("08:00").do(job)
+        # Check daily at 08:00 AM
+        # schedule.every().day.at("08:00").do(job)
+        schedule.every(2).minutes.do(job)
 
         while True:
             schedule.run_pending()
-            time.sleep(1)
-
-    
-    
- 
-
+            time.sleep(30)
