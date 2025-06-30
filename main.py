@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from auth import init_user_table, register_user, authenticate_user
 from dashboard import DashboardPage
+import json
 
 class FinanceApp(tk.Tk):
     def __init__(self):
@@ -39,22 +40,37 @@ class LoginPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
+
         ttk.Label(self, text="Login", font=("Arial", 16)).pack(pady=20)
-        self.username = ttk.Entry(self)
-        self.username.pack(padx=100, fill="x")
+
+        ttk.Label(self, text="Email").pack(padx=100, anchor="w")
+        self.email = ttk.Entry(self)
+        self.email.pack(padx=100, fill="x")
+
+        ttk.Label(self, text="Password").pack(padx=100, anchor="w")
         self.password = ttk.Entry(self, show="*")
         self.password.pack(padx=100, fill="x")
+
         ttk.Button(self, text="Login", command=self.login).pack(pady=10)
         ttk.Button(self, text="Register", command=lambda: controller.show_frame("RegisterPage")).pack()
 
     def login(self):
-        u = self.username.get().strip()
-        p = self.password.get().strip()
-        user_id = authenticate_user(u, p)
+        email = self.email.get().strip()
+        password = self.password.get().strip()
+        user_id = authenticate_user(email, password)
+
         if user_id:
-            self.controller.launch_dashboard(u, user_id)
+            # 🔐 Save session to disk for background access
+            user_data = {
+                "email": email,
+                "user_id": user_id
+            }
+            with open("current_user.json", "w") as f:
+                json.dump(user_data, f)
+
+            self.controller.launch_dashboard(email, user_id)
         else:
-            messagebox.showerror("Error", "Invalid credentials.")
+            messagebox.showerror("Error", "Invalid email or password.")
 
 
 class RegisterPage(tk.Frame):
@@ -63,28 +79,37 @@ class RegisterPage(tk.Frame):
         self.controller = controller
 
         ttk.Label(self, text="Register", font=("Arial", 16)).pack(pady=20)
-        self.username = ttk.Entry(self)
-        self.username.pack(padx=100, fill="x")
+
+        ttk.Label(self, text="Email").pack(padx=100, anchor="w")
+        self.email = ttk.Entry(self)
+        self.email.pack(padx=100, fill="x")
+
+        ttk.Label(self, text="Password").pack(padx=100, anchor="w")
         self.password = ttk.Entry(self, show="*")
         self.password.pack(padx=100, fill="x")
+
+        ttk.Label(self, text="Confirm Password").pack(padx=100, anchor="w")
         self.confirm = ttk.Entry(self, show="*")
         self.confirm.pack(padx=100, fill="x")
+
         ttk.Button(self, text="Create Account", command=self.register).pack(pady=10)
         ttk.Button(self, text="Back to Login", command=lambda: controller.show_frame("LoginPage")).pack()
 
     def register(self):
-        u = self.username.get().strip()
-        p = self.password.get().strip()
-        cp = self.confirm.get().strip()
-        if not u or not p or not cp:
-            messagebox.showerror("Error", "All fields required.")
-        elif p != cp:
+        email = self.email.get().strip()
+        password = self.password.get().strip()
+        confirm = self.confirm.get().strip()
+
+        if not email or not password or not confirm:
+            messagebox.showerror("Error", "All fields are required.")
+        elif password != confirm:
             messagebox.showerror("Error", "Passwords do not match.")
-        elif register_user(u, p):
+        elif register_user(email, password):  # register_user should expect email now
             messagebox.showinfo("Success", "Account created. You can now log in.")
             self.controller.show_frame("LoginPage")
         else:
-            messagebox.showerror("Error", "Username already exists.")
+            messagebox.showerror("Error", "Email already exists.")
+
 
 
 if __name__ == "__main__":

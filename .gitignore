@@ -224,3 +224,4 @@ venv/
 .DS_Store
 credentials.json
 token.pickle
+current_user.json

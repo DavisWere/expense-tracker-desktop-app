@@ -27,20 +27,22 @@ def add_transaction(user_id, date, tx_type, amount, category, note):
     conn.commit()
     conn.close()
 
-def get_transactions(user_id):
-    conn = sqlite3.connect('finance.db')
+def get_transactions(email):
+    conn = sqlite3.connect("finance.db")
     c = conn.cursor()
-    c.execute('SELECT id, date, type, amount, category, note FROM transactions WHERE user_id = ? ORDER BY date DESC', (user_id,))
+    c.execute(
+        "SELECT id, date, type, amount, category, note FROM transactions WHERE user_email = ? ORDER BY date DESC",
+        (email,)
+    )
     rows = c.fetchall()
     conn.close()
     return rows
-
-def calculate_totals(user_id):
+def calculate_totals(email):
     conn = sqlite3.connect('finance.db')
     c = conn.cursor()
-    c.execute("SELECT SUM(amount) FROM transactions WHERE type='Income' AND user_id=?", (user_id,))
+    c.execute("SELECT SUM(amount) FROM transactions WHERE type='Income' AND user_email=?", (email,))
     income = c.fetchone()[0] or 0
-    c.execute("SELECT SUM(amount) FROM transactions WHERE type='Expense' AND user_id=?", (user_id,))
+    c.execute("SELECT SUM(amount) FROM transactions WHERE type='Expense' AND user_email=?", (email,))
     expense = c.fetchone()[0] or 0
     conn.close()
     return income, expense

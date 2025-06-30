@@ -14,6 +14,7 @@ from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 from gmail_auth import get_gmail_service
 import socket
+import json
 
 
 from email_config import EMAIL_ADDRESS, TO_EMAIL
@@ -94,13 +95,17 @@ class DashboardPage(tk.Frame):
     def logout(self):
         self.controller.show_frame("LoginPage")
 
-    def generate_pdf_report(self, silent=False):
+    def generate_pdf_report(self, email=None, username=None, silent=False):
         now = datetime.now()
         filename = f"report_{now.strftime('%Y-%m-%d')}.pdf"
         filepath = os.path.join(os.getcwd(), filename)
 
-        transactions = get_transactions(self.user_id)
-        income, expense = calculate_totals(self.user_id)
+        # Fallbacks if not passed
+        email = email or self.username
+        username = username or self.username
+
+        transactions = get_transactions(email)
+        income, expense = calculate_totals(email)
         balance = income - expense
 
         c = canvas.Canvas(filepath, pagesize=A4)
@@ -191,13 +196,26 @@ class DashboardPage(tk.Frame):
             time.sleep(retry_delay)
 
     def run_background_tasks(self):
+        def load_current_user():
+            try:
+                with open("current_user.json", "r") as f:
+                    return json.load(f)  # returns dict with email and username
+            except FileNotFoundError:
+                print("❌ No user session found.")
+                return None
+            
         def job():
-            # today = datetime.today().date()
-            today = datetime(2025, 7, 1).date()  # mock 1st of the month
+            user_data = load_current_user()
+            if not user_data:
+                return  # No user available
 
+            email = user_data["email"]
+            username = user_data.get("username", "User")
+
+            # today = datetime.today().date()
+            today = datetime(2025, 7, 1).date() 
             if today.day == 1:
-                print("📅 It's the 1st. Generating and sending report...")
-                filepath = self.generate_pdf_report(silent=True)
+                filepath = self.generate_pdf_report(email, username)
                 self.send_email_with_pdf(filepath)
             else:
                 print("⏭️ Not the 1st of the month, skipping email.")
