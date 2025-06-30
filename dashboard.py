@@ -14,6 +14,7 @@ from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 from gmail_auth import get_gmail_service
 import socket
+import yagmail
 
 
 from email_config import EMAIL_ADDRESS, TO_EMAIL
@@ -189,7 +190,6 @@ class DashboardPage(tk.Frame):
                 print(f"Retrying in {retry_delay // 60} min...")
 
             time.sleep(retry_delay)
-
 
     def run_background_tasks(self):
         def job():
